@@ -13,6 +13,8 @@ dependencies:
   # UI
   google_fonts: ^6.1.0
   animations: ^2.0.1
+  firebase_core: ^2.20.0
+  cloud_firestore: ^4.9.0
 
   # State Management
   flutter_riverpod: ^2.5.1

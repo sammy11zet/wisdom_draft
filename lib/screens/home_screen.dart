@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:animations/animations.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +13,7 @@ import '../data/questions_data.dart';
 import '../models/leaderboard_entry.dart';
 import '../models/piece_model.dart';
 import '../models/question_model.dart';
+import '../services/leaderboard_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final Random _random = Random();
   late final Box _leaderboardBox;
+  late final LeaderboardService _leaderboardService;
 
   bool isPlayerTurn = true;
   bool isAskingQuestion = false;
@@ -51,14 +55,26 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _questionTimer;
   Set<int> usedQuestionIndexes = {};
   List<LeaderboardEntry> leaderboardEntries = [];
+  List<LeaderboardEntry> cloudLeaderboardEntries = [];
   final List<String> achievements = [];
+  bool cloudLeaderboardEnabled = false;
+  bool isLoadingCloudLeaderboard = false;
+  String cloudStatusMessage = 'Cloud leaderboard is not configured yet.';
 
   @override
   void initState() {
     super.initState();
     _leaderboardBox = Hive.box('leaderboard');
+    _leaderboardService = LeaderboardService(
+      _leaderboardBox,
+      Firebase.apps.isNotEmpty ? FirebaseFirestore.instance : null,
+    );
+    cloudLeaderboardEnabled = _leaderboardService.cloudEnabled;
     _loadLeaderboard();
     _initializeBoard();
+    if (cloudLeaderboardEnabled) {
+      _loadCloudLeaderboard();
+    }
   }
 
   void _loadLeaderboard() {
@@ -76,6 +92,27 @@ class _HomeScreenState extends State<HomeScreen> {
   void _storeLeaderboard() {
     final data = leaderboardEntries.map((entry) => entry.toMap()).toList();
     _leaderboardBox.put('topLearners', data);
+  }
+
+  Future<void> _loadCloudLeaderboard() async {
+    if (!cloudLeaderboardEnabled) return;
+    setState(() {
+      isLoadingCloudLeaderboard = true;
+      cloudStatusMessage = 'Loading global leaderboard...';
+    });
+
+    try {
+      cloudLeaderboardEntries = await _leaderboardService.fetchCloudTopEntries(limit: 20);
+      if (cloudLeaderboardEntries.isEmpty) {
+        cloudStatusMessage = 'No global leaderboard entries yet.';
+      }
+    } catch (error) {
+      cloudStatusMessage = 'Failed to load global leaderboard.';
+    }
+
+    setState(() {
+      isLoadingCloudLeaderboard = false;
+    });
   }
 
   void _initializeBoard() {
@@ -619,7 +656,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _saveLeaderboardEntry(String name) {
+  void _saveLeaderboardEntry(String name) async {
     final existingIndex = leaderboardEntries.indexWhere((entry) => entry.name == name);
     if (existingIndex != -1) {
       final current = leaderboardEntries[existingIndex];
@@ -638,6 +675,12 @@ class _HomeScreenState extends State<HomeScreen> {
       return b.wins.compareTo(a.wins);
     });
     _storeLeaderboard();
+
+    if (cloudLeaderboardEnabled) {
+      await _leaderboardService.saveCloudEntry(name, playerScore, 1);
+      await _loadCloudLeaderboard();
+    }
+
     setState(() {});
   }
 
@@ -708,54 +751,90 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (leaderboardEntries.isEmpty)
-              const Text('No leaderboard entries yet.', style: TextStyle(color: Colors.white54))
-            else
-              Column(
-                children: [
-                  ...leaderboardEntries.take(10).toList().asMap().entries.map((entry) {
-                    final index = entry.key + 1;
-                    final data = entry.value;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '#$index',
-                            style: const TextStyle(color: accentGold, fontWeight: FontWeight.bold),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (cloudLeaderboardEnabled) ...[
+                const Text('Global Leaderboard', style: TextStyle(color: accentGold, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                if (isLoadingCloudLeaderboard)
+                  const CircularProgressIndicator(color: accentGold)
+                else if (cloudLeaderboardEntries.isEmpty)
+                  Text(cloudStatusMessage, style: const TextStyle(color: Colors.white54))
+                else
+                  Column(
+                    children: [
+                      ...cloudLeaderboardEntries.take(10).toList().asMap().entries.map((entry) {
+                        final index = entry.key + 1;
+                        final data = entry.value;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('#$index', style: const TextStyle(color: accentGold, fontWeight: FontWeight.bold)),
+                              Expanded(
+                                child: Text(data.name, style: const TextStyle(color: Colors.white), overflow: TextOverflow.ellipsis),
+                              ),
+                              Text('${data.score}pts', style: const TextStyle(color: Colors.white70)),
+                            ],
                           ),
-                          Expanded(
-                            child: Text(
-                              data.name,
-                              style: const TextStyle(color: Colors.white),
-                              overflow: TextOverflow.ellipsis,
+                        );
+                      }),
+                    ],
+                  ),
+                const Divider(color: Colors.white24),
+              ] else ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(
+                    cloudStatusMessage,
+                    style: const TextStyle(color: Colors.white54),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const Divider(color: Colors.white24),
+              ],
+              const SizedBox(height: 12),
+              const Text('Local Leaderboard', style: TextStyle(color: accentGold, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              if (leaderboardEntries.isEmpty)
+                const Text('No local entries yet.', style: TextStyle(color: Colors.white54))
+              else
+                Column(
+                  children: [
+                    ...leaderboardEntries.take(10).toList().asMap().entries.map((entry) {
+                      final index = entry.key + 1;
+                      final data = entry.value;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('#$index', style: const TextStyle(color: accentGold, fontWeight: FontWeight.bold)),
+                            Expanded(
+                              child: Text(data.name, style: const TextStyle(color: Colors.white), overflow: TextOverflow.ellipsis),
                             ),
-                          ),
-                          Text(
-                            '${data.score}pts',
-                            style: const TextStyle(color: Colors.white70),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
+                            Text('${data.score}pts', style: const TextStyle(color: Colors.white70)),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 10),
+              Text(
+                'Your Rank: ${_artMasterRankLabel()}',
+                style: const TextStyle(color: accentGold, fontWeight: FontWeight.bold),
               ),
-            const Divider(color: Colors.white24),
-            const SizedBox(height: 10),
-            Text(
-              'Your Rank: ${_artMasterRankLabel()}',
-              style: const TextStyle(color: accentGold, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              'Score: $playerScore',
-              style: const TextStyle(color: Colors.white70),
-            ),
-          ],
+              Text(
+                'Score: $playerScore',
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
         ),
       ),
     );
