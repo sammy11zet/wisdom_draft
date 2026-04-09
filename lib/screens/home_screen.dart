@@ -154,6 +154,19 @@ class _HomeScreenState extends State<HomeScreen> {
     return moves;
   }
 
+  List<Map<String, int>> _getChainCaptures(Piece piece) {
+    /// Get all available capture moves for a piece (for chain captures)
+    final captures = <Map<String, int>>[];
+    for (var row = 0; row < boardSize; row++) {
+      for (var col = 0; col < boardSize; col++) {
+        if (_isValidMove(piece, row, col) && _isCaptureMove(piece, row, col)) {
+          captures.add({'row': row, 'col': col});
+        }
+      }
+    }
+    return captures;
+  }
+
   void _handleCellTap(int row, int col) {
     if (!isPlayerTurn || isAskingQuestion || gameOver) return;
 
@@ -217,13 +230,25 @@ class _HomeScreenState extends State<HomeScreen> {
       return true;
     }
 
+    // Normal forward move
     if (rowDiff == allowedDirection && colDiff.abs() == 1) return true;
+    
+    // Forward capture (2-square jump)
     if (rowDiff == 2 * allowedDirection && colDiff.abs() == 2) {
       final midRow = piece.row + rowDiff ~/ 2;
       final midCol = piece.col + colDiff ~/ 2;
       final midPiece = _pieceAt(midRow, midCol);
       return midPiece != null && midPiece.isPlayer != piece.isPlayer;
     }
+    
+    // Back-capture (rare opportunity): 2-square jump backward when capturing
+    if (rowDiff == -2 * allowedDirection && colDiff.abs() == 2) {
+      final midRow = piece.row + rowDiff ~/ 2;
+      final midCol = piece.col + colDiff ~/ 2;
+      final midPiece = _pieceAt(midRow, midCol);
+      return midPiece != null && midPiece.isPlayer != piece.isPlayer;
+    }
+    
     return false;
   }
 
@@ -331,10 +356,27 @@ class _HomeScreenState extends State<HomeScreen> {
       _applyMove(piece, destRow, destCol);
       _playSuccessSound();
       _showMessage('Correct!', 'Move unlocked and scored.', Colors.green);
-      setState(() {
-        statusText = 'Moved piece. AI turn.';
+      
+      // Future.delayed is used to ensure the piece has been updated in the UI
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted && isPlayerTurn) {
+          // Check for chain captures after the move is applied
+          final movedPiece = _pieceAt(destRow, destCol);
+          if (movedPiece != null && _isCaptureMove(piece, destRow, destCol)) {
+            final chainCaptures = _getChainCaptures(movedPiece);
+            if (chainCaptures.isNotEmpty) {
+              // Chain captures available - keep the piece selected and allow next capture
+              setState(() {
+                selectedPiece = movedPiece;
+                statusText = 'Chain capture available! Select your next move.';
+              });
+              return;
+            }
+          }
+          // No chain captures - end the turn
+          _endPlayerTurn();
+        }
       });
-      _endPlayerTurn();
     } else {
       madeIncorrectAnswer = true;
       currentStreak = 0;
@@ -752,6 +794,22 @@ class _HomeScreenState extends State<HomeScreen> {
               const Text(
                 'GES Art Studio & Foundation',
                 style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accentGold.withAlpha(180),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'TeamGrok',
+                  style: GoogleFonts.philosopher(
+                    color: Colors.black87,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               Row(
