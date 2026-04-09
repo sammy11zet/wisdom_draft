@@ -1,4 +1,4 @@
-enum QuestionCategory { studio, foundation }
+enum QuestionCategory { studio, foundation, teaching }
 
 class Question {
   final String id;
