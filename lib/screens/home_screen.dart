@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:animations/animations.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -65,6 +66,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool isLoadingCloudLeaderboard = false;
   String cloudStatusMessage = 'Cloud leaderboard is not configured yet.';
 
+  late AudioPlayer _backgroundPlayer;
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +83,13 @@ class _HomeScreenState extends State<HomeScreen> {
     if (cloudLeaderboardEnabled) {
       _loadCloudLeaderboard();
     }
+    _initializeAudio();
+  }
+
+  @override
+  void dispose() {
+    _backgroundPlayer.dispose();
+    super.dispose();
   }
 
   void _loadPlayerInfo() {
@@ -101,6 +111,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (b.score != a.score) return b.score.compareTo(a.score);
       return b.wins.compareTo(a.wins);
     });
+  }
+
+  void _initializeAudio() async {
+    _backgroundPlayer = AudioPlayer();
+    await _backgroundPlayer.setReleaseMode(ReleaseMode.loop);
+    await _backgroundPlayer.play(AssetSource('audio/background.mp3'));
   }
 
   void _storeLeaderboard() {
