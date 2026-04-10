@@ -46,10 +46,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Piece? capturedPiece;
 
   int playerScore = 0;
+  int coinBalance = 0;
+  int currentLevel = 1;
   int currentStreak = 0;
   int wisdomOrbs = 0;
   int correctAnswerCount = 0;
-  int timeRemaining = 10;
+  int secondsPerQuestion = 15;
+  int timeRemaining = 15;
+  String playerName = 'Learner';
 
   String statusText = 'Player turn: select a piece';
   Timer? _questionTimer;
@@ -70,11 +74,21 @@ class _HomeScreenState extends State<HomeScreen> {
       Firebase.apps.isNotEmpty ? FirebaseFirestore.instance : null,
     );
     cloudLeaderboardEnabled = _leaderboardService.cloudEnabled;
+    _loadPlayerInfo();
     _loadLeaderboard();
     _initializeBoard();
     if (cloudLeaderboardEnabled) {
       _loadCloudLeaderboard();
     }
+  }
+
+  void _loadPlayerInfo() {
+    final name = _leaderboardBox.get('playerName', defaultValue: 'Learner') as String;
+    playerName = name;
+  }
+
+  void _storePlayerInfo() {
+    _leaderboardBox.put('playerName', playerName);
   }
 
   void _loadLeaderboard() {
@@ -115,7 +129,44 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _initializeBoard() {
+  double get _aiSkill => (0.55 + (currentLevel - 1) * 0.1).clamp(0.55, 0.95);
+
+  void _promptForPlayerName() {
+    final controller = TextEditingController(text: playerName);
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Enter your name'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(hintText: 'Learner name'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final name = controller.text.trim();
+                if (name.isNotEmpty) {
+                  setState(() {
+                    playerName = name;
+                  });
+                  _storePlayerInfo();
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _initializeBoard({bool resetProgress = false}) {
     pieces = [];
 
     for (var row = 0; row < 3; row++) {
@@ -134,6 +185,11 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
+    if (resetProgress) {
+      currentLevel = 1;
+      coinBalance = 0;
+    }
+
     selectedPiece = null;
     capturedPiece = null;
     isPlayerTurn = true;
@@ -145,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
     correctAnswerCount = 0;
     madeIncorrectAnswer = false;
     statusText = 'Player turn: select a piece';
-    timeRemaining = 10;
+    timeRemaining = secondsPerQuestion;
     _questionTimer?.cancel();
     setState(() {});
   }
@@ -293,7 +349,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final question = gesQuestions[_getNextQuestionIndex()];
     setState(() {
       isAskingQuestion = true;
-      timeRemaining = 10;
+      timeRemaining = secondsPerQuestion;
     });
 
     _questionTimer?.cancel();
@@ -352,7 +408,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           isAskingQuestion = false;
-          timeRemaining = 10;
+          timeRemaining = secondsPerQuestion;
         });
       }
     });
@@ -374,6 +430,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (correct && selectedIndex != -1) {
+      final earnedCoins = 5 + timeRemaining * 2;
+      final captureBonus = _isCaptureMove(piece, destRow, destCol) ? 10 : 0;
+      coinBalance += earnedCoins + captureBonus;
       playerScore += question.points;
       correctAnswerCount += 1;
       currentStreak += 1;
@@ -392,8 +451,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       _applyMove(piece, destRow, destCol);
       _playSuccessSound();
-      _showMessage('Correct!', 'Move unlocked and scored.', Colors.green);
-      
+      _showMessage('Correct! +${earnedCoins + captureBonus} coins', 'Move unlocked and scored.', Colors.green);
+
       // Future.delayed is used to ensure the piece has been updated in the UI
       Future.delayed(const Duration(milliseconds: 400), () {
         if (mounted && isPlayerTurn) {
@@ -481,19 +540,21 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         statusText = 'AI wins!';
       });
+      _showDefeatDialog();
       return;
     }
 
     if (pieces.where((p) => !p.isPlayer).isEmpty) {
       gameOver = true;
+      currentLevel += 1;
       _showMessage('Game Over', 'Player wins!', Colors.green);
       setState(() {
-        statusText = 'Player wins!';
+        statusText = 'Level $currentLevel unlocked!';
       });
       if (!madeIncorrectAnswer) {
         _unlockAchievement('Flawless Victory', 'Win without mistakes');
       }
-      _promptSaveScore();
+      _showVictoryDialog();
     }
   }
 
@@ -557,7 +618,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
 
     if (captureMoves.isNotEmpty) {
-      final didAnswer = _random.nextInt(100) < 70;
+      final didAnswer = _random.nextInt(100) < (_aiSkill * 100).toInt();
       if (!didAnswer) {
         setState(() {
           isPlayerTurn = true;
@@ -568,7 +629,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final moveList = captureMoves.isNotEmpty ? captureMoves : validMoves;
-    final move = moveList[_random.nextInt(moveList.length)];
+    Map<String, dynamic> move;
+    if (captureMoves.isEmpty && currentLevel >= 3) {
+      moveList.sort((a, b) {
+        final aRow = (a['row'] as int);
+        final bRow = (b['row'] as int);
+        return bRow.compareTo(aRow);
+      });
+      move = moveList.first;
+    } else {
+      move = moveList[_random.nextInt(moveList.length)];
+    }
     final piece = move['piece'] as Piece;
     final row = move['row'] as int;
     final col = move['col'] as int;
@@ -579,6 +650,79 @@ class _HomeScreenState extends State<HomeScreen> {
       isPlayerTurn = true;
       statusText = 'AI moved. Player turn.';
     });
+  }
+
+  void _showVictoryDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF121212),
+          title: Column(
+            children: const [
+              Icon(Icons.emoji_events, size: 60, color: Color(0xFFFCD116)),
+              SizedBox(height: 12),
+              Text('Congratulations!', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('You have won this match and unlocked Level $currentLevel.', style: const TextStyle(color: Colors.white70)),
+              const SizedBox(height: 16),
+              Text('Coins earned: $coinBalance', style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              const Text('AI will become stronger for the next round.', style: TextStyle(color: Colors.white70)),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _promptSaveScore();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: accentGold, foregroundColor: Colors.black),
+              child: const Text('Save Score'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _initializeBoard();
+              },
+              child: const Text('Next Level', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDefeatDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF121212),
+          title: Column(
+            children: const [
+              Icon(Icons.sentiment_dissatisfied, size: 60, color: Colors.redAccent),
+              SizedBox(height: 12),
+              Text('Game Over', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text('AI has won this match. Try again to climb levels and earn more coins.', style: TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _initializeBoard(resetProgress: false);
+              },
+              child: const Text('Play Again', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showMessage(String title, String body, Color color) {
