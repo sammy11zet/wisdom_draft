@@ -67,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String cloudStatusMessage = 'Cloud leaderboard is not configured yet.';
 
   late AudioPlayer _backgroundPlayer;
+  late AudioPlayer _effectPlayer;
 
   @override
   void initState() {
@@ -89,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _backgroundPlayer.dispose();
+    _effectPlayer.dispose();
     super.dispose();
   }
 
@@ -117,7 +119,19 @@ class _HomeScreenState extends State<HomeScreen> {
     _backgroundPlayer = AudioPlayer();
     await _backgroundPlayer.setReleaseMode(ReleaseMode.loop);
     await _backgroundPlayer.play(AssetSource('audio/background.mp3'));
+
+    _effectPlayer = AudioPlayer();
   }
+
+  void _playSelectSound() => _effectPlayer.play(AssetSource('audio/select.wav'));
+  void _playMoveSound() => _effectPlayer.play(AssetSource('audio/move.wav'));
+  void _playCaptureSound() => _effectPlayer.play(AssetSource('audio/capture.wav'));
+  void _playQuestionSound() => _effectPlayer.play(AssetSource('audio/question.wav'));
+  void _playCorrectSound() => _effectPlayer.play(AssetSource('audio/correct.wav'));
+  void _playWrongSound() => _effectPlayer.play(AssetSource('audio/wrong.wav'));
+  void _playPromotionSound() => _effectPlayer.play(AssetSource('audio/promotion.wav'));
+  void _playWinSound() => _effectPlayer.play(AssetSource('audio/win.wav'));
+  void _playTurnChangeSound() => _effectPlayer.play(AssetSource('audio/turn.wav'));
 
   void _storeLeaderboard() {
     final data = leaderboardEntries.map((entry) => entry.toMap()).toList();
@@ -282,6 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final targetPiece = _pieceAt(row, col);
     if (targetPiece != null) {
       if (targetPiece.isPlayer) {
+        _playSelectSound();
         setState(() {
           selectedPiece = targetPiece;
           statusText = 'Selected piece at (${row + 1}, ${col + 1})';
@@ -362,6 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _askQuestionForMove(Piece piece, int destRow, int destCol) {
+    _playCaptureSound();
     final question = gesQuestions[_getNextQuestionIndex()];
     setState(() {
       isAskingQuestion = true;
@@ -383,6 +399,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
+    _playQuestionSound();
     showModal(
       context: context,
       configuration: const FadeScaleTransitionConfiguration(),
@@ -466,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       _applyMove(piece, destRow, destCol);
-      _playSuccessSound();
+      _playCorrectSound();
       _showMessage('Correct! +${earnedCoins + captureBonus} coins', 'Move unlocked and scored.', Colors.green);
 
       // Future.delayed is used to ensure the piece has been updated in the UI
@@ -492,7 +509,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       madeIncorrectAnswer = true;
       currentStreak = 0;
-      _playErrorSound();
+      _playWrongSound();
       _showMessage('Incorrect', 'You lost your turn.', Colors.red);
       setState(() {
         selectedPiece = null;
@@ -503,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _unlockAchievement(String title, String subtitle) {
-    _playSuccessSound();
+    _playCorrectSound();
     final achievement = '$title: $subtitle';
     if (!achievements.contains(achievement)) {
       achievements.insert(0, achievement);
@@ -533,7 +550,12 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
 
+      if (!piece.isKing && _shouldBeKing(piece, destRow)) {
+        _playPromotionSound();
+      }
+
       if (captured != null) {
+        _playMoveSound(); // For capture move, still play move after capture sound
         Future.delayed(const Duration(milliseconds: 300), () {
           if (mounted) {
             setState(() {
@@ -544,6 +566,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         });
       } else {
+        _playMoveSound();
         _checkWinCondition();
       }
     }
@@ -562,6 +585,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (pieces.where((p) => !p.isPlayer).isEmpty) {
       gameOver = true;
+      _playWinSound();
       currentLevel += 1;
       _showMessage('Game Over', 'Player wins!', Colors.green);
       setState(() {
@@ -595,6 +619,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _endPlayerTurn() {
     if (gameOver) return;
+    _playTurnChangeSound();
     setState(() {
       selectedPiece = null;
       isPlayerTurn = false;
