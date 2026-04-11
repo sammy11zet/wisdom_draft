@@ -52,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int currentStreak = 0;
   int wisdomOrbs = 0;
   int correctAnswerCount = 0;
-  int secondsPerQuestion = 15;
+  int secondsPerQuestion = 20;
   int timeRemaining = 15;
   String playerName = 'Learner';
 
@@ -1248,20 +1248,29 @@ class _HomeScreenState extends State<HomeScreen> {
           topRight: Radius.circular(20),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      child: Column(
         children: [
-          _miniStat('Player', '$playerCount'),
-          _miniStat('AI', '$aiCount'),
-          _miniStat('Streak', '$currentStreak'),
-          ElevatedButton.icon(
-            onPressed: _initializeBoard,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Reset'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: accentGold,
-              foregroundColor: Colors.black,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _miniStat('Player', '$playerCount'),
+              _miniStat('AI', '$aiCount'),
+              _miniStat('Streak', '$currentStreak'),
+              ElevatedButton.icon(
+                onPressed: _initializeBoard,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reset'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentGold,
+                  foregroundColor: Colors.black,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Powered by TeamGrok',
+            style: TextStyle(fontSize: 10, color: Colors.white54),
           ),
         ],
       ),
