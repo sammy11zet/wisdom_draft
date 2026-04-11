@@ -68,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late AudioPlayer _backgroundPlayer;
   late AudioPlayer _effectPlayer;
+  late AudioPlayer _loopPlayer;
 
   @override
   void initState() {
@@ -91,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _backgroundPlayer.dispose();
     _effectPlayer.dispose();
+    _loopPlayer.dispose();
     super.dispose();
   }
 
@@ -121,17 +123,22 @@ class _HomeScreenState extends State<HomeScreen> {
     await _backgroundPlayer.play(AssetSource('audio/background.mp3'));
 
     _effectPlayer = AudioPlayer();
+    _loopPlayer = AudioPlayer();
   }
 
-  void _playSelectSound() => _effectPlayer.play(AssetSource('audio/select.wav'));
-  void _playMoveSound() => _effectPlayer.play(AssetSource('audio/move.wav'));
-  void _playCaptureSound() => _effectPlayer.play(AssetSource('audio/capture.wav'));
-  void _playQuestionSound() => _effectPlayer.play(AssetSource('audio/question.wav'));
-  void _playCorrectSound() => _effectPlayer.play(AssetSource('audio/correct.wav'));
-  void _playWrongSound() => _effectPlayer.play(AssetSource('audio/wrong.wav'));
-  void _playPromotionSound() => _effectPlayer.play(AssetSource('audio/promotion.wav'));
-  void _playWinSound() => _effectPlayer.play(AssetSource('audio/win.wav'));
-  void _playTurnChangeSound() => _effectPlayer.play(AssetSource('audio/turn.wav'));
+  void _playSelectSound() => _effectPlayer.play(AssetSource('audio/select.mp3'));
+  void _playMoveSound() => _effectPlayer.play(AssetSource('audio/move.mp3'));
+  void _playCaptureSound() => _effectPlayer.play(AssetSource('audio/capture.mp3'));
+  void _playQuestionSound() async {
+    await _loopPlayer.setReleaseMode(ReleaseMode.loop);
+    await _loopPlayer.play(AssetSource('audio/question.mp3'));
+  }
+  void _stopQuestionSound() => _loopPlayer.stop();
+  void _playCorrectSound() => _effectPlayer.play(AssetSource('audio/promotion.mp3'));
+  void _playWrongSound() => _effectPlayer.play(AssetSource('audio/wrong.mp3'));
+  void _playPromotionSound() => _effectPlayer.play(AssetSource('audio/promotion.mp3'));
+  void _playWinSound() => _effectPlayer.play(AssetSource('audio/win.mp3'));
+  void _playTurnChangeSound() => _effectPlayer.play(AssetSource('audio/turn.mp3'));
 
   void _storeLeaderboard() {
     final data = leaderboardEntries.map((entry) => entry.toMap()).toList();
@@ -436,6 +443,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     ).then((_) {
+      _stopQuestionSound();
       _questionTimer?.cancel();
       _questionTimer = null;
       if (mounted) {
@@ -454,6 +462,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Question question,
     int selectedIndex,
   ) {
+    _stopQuestionSound();
     _questionTimer?.cancel();
     _questionTimer = null;
 
