@@ -237,6 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
     wisdomOrbs = 0;
     correctAnswerCount = 0;
     madeIncorrectAnswer = false;
+    usedQuestionIndexes.clear();
     statusText = 'Player turn: select a piece';
     timeRemaining = secondsPerQuestion;
     _questionTimer?.cancel();
