@@ -80,6 +80,20 @@
   </div>
 
   <script>
+    // Check WebGL2 support before loading Flutter (required for CanvasKit renderer)
+    (function() {
+      var canvas = document.createElement('canvas');
+      var gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+      if (!gl) {
+        document.getElementById('loading').innerHTML =
+          '<div style="color:#FCD116;padding:24px;text-align:center;max-width:320px">' +
+          '<div style="font-size:18px;font-weight:bold;margin-bottom:12px">Browser Not Supported</div>' +
+          '<div style="font-size:13px;color:#aaa;margin-bottom:16px">This game requires WebGL which is not available in your browser. Try opening in Safari on iOS 15+ or Chrome on Android.</div>' +
+          '</div>';
+        return;
+      }
+    })();
+
     // Catch JavaScript errors and display them instead of blank screen
     window.onerror = function(msg, src, line, col, err) {
       var el = document.getElementById('loading');
@@ -94,18 +108,18 @@
       return false;
     };
 
-    // Show timeout message if Flutter hasn't started within 25 seconds
+    // Show timeout message if Flutter hasn't started within 30 seconds
     var _loadTimeout = setTimeout(function() {
       var el = document.getElementById('loading');
       if (el) {
         el.innerHTML =
           '<div style="color:#FCD116;padding:24px;text-align:center;max-width:320px">' +
           '<div style="font-size:18px;font-weight:bold;margin-bottom:12px">Taking too long</div>' +
-          '<div style="font-size:13px;color:#888;margin-bottom:16px">The game is taking longer than expected to load. Please check your connection and try again.</div>' +
+          '<div style="font-size:13px;color:#888;margin-bottom:16px">The game is taking longer than expected to load. Try reloading the page.</div>' +
           '<button onclick="location.reload()" style="padding:10px 24px;background:#FCD116;color:#000;border:none;border-radius:6px;font-size:14px;cursor:pointer">Retry</button>' +
           '</div>';
       }
-    }, 25000);
+    }, 30000);
 
     // Remove the loading screen once Flutter is ready
     window.addEventListener('flutter-first-frame', function () {

@@ -26267,7 +26267,7 @@ $S:2}
 A.aqK.prototype={
 $1(a){var s=A.eA().b
 s=s==null?null:s.canvasKitBaseUrl
-return(s==null?"canvaskit/":s)+a},
+return(s==null?"https://www.gstatic.com/flutter-canvaskit/72ee26e314f471012ee4ee60b5cf1831c0ed6a45/":s)+a},
 $S:64}
 A.a_3.prototype={
 eM(a,b){var s,r=this.a
