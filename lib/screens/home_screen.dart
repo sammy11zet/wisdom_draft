@@ -191,9 +191,11 @@ class _HomeScreenState extends State<HomeScreen>
   // Called on first user tap — satisfies browser autoplay policy.
   void _startBackgroundIfNeeded() async {
     if (_audioStarted) return;
+    // Wait until _initializeAudio has finished setting up the background player.
+    if (_backgroundPlayer == null) return;
     _audioStarted = true;
     try {
-      await _backgroundPlayer?.resume();
+      await _backgroundPlayer!.play(AssetSource('audio/background.mp3'));
     } catch (_) {}
   }
 
