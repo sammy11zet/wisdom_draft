@@ -37,11 +37,15 @@ class _HomeScreenState extends State<HomeScreen>
   late final Box _leaderboardBox;
   late final LeaderboardService _leaderboardService;
 
+  static const int _maxCapturesPerTurn = 3;
+
   bool isPlayerTurn = true;
   bool isAskingQuestion = false;
   bool gameOver = false;
   bool firstCaptureAchievement = false;
   bool madeIncorrectAnswer = false;
+  int _consecutiveCaptureCount = 0;
+  bool _audioStarted = false;
 
   List<Piece> pieces = [];
   Piece? selectedPiece;
@@ -56,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen>
   int secondsPerQuestion = 20;
   int timeRemaining = 15;
   String playerName = 'Learner';
+  String schoolTag = '';
 
   String statusText = 'Player turn: select a piece';
   Timer? _questionTimer;
@@ -68,9 +73,9 @@ class _HomeScreenState extends State<HomeScreen>
   bool isLoadingCloudLeaderboard = false;
   String cloudStatusMessage = 'Cloud leaderboard is not configured yet.';
 
-  late AudioPlayer _backgroundPlayer;
-  late AudioPlayer _effectPlayer;
-  late AudioPlayer _loopPlayer;
+  AudioPlayer? _backgroundPlayer;
+  AudioPlayer? _loopPlayer;
+  final Map<String, AudioPlayer> _soundPlayers = {};
 
   late AnimationController _coinController;
   late Animation<double> _coinAnimation;
@@ -109,21 +114,25 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
-    _backgroundPlayer.dispose();
-    _effectPlayer.dispose();
-    _loopPlayer.dispose();
+    for (final p in _soundPlayers.values) {
+      try { p.dispose(); } catch (_) {}
+    }
+    try { _backgroundPlayer?.dispose(); } catch (_) {}
+    try { _loopPlayer?.dispose(); } catch (_) {}
     _coinController.dispose();
     super.dispose();
   }
 
   void _loadPlayerInfo() {
-    final name =
+    playerName =
         _leaderboardBox.get('playerName', defaultValue: 'Learner') as String;
-    playerName = name;
+    schoolTag =
+        _leaderboardBox.get('schoolTag', defaultValue: '') as String;
   }
 
   void _storePlayerInfo() {
     _leaderboardBox.put('playerName', playerName);
+    _leaderboardBox.put('schoolTag', schoolTag);
   }
 
   void _loadLeaderboard() {
@@ -139,110 +148,83 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  // One dedicated AudioPlayer per effect sound — pre-loaded so playback is instant.
+  static const _effectKeys = {
+    'select':    'audio/select.mp3',
+    'move':      'audio/move.mp3',
+    'capture':   'audio/capture.mp3',
+    'promotion': 'audio/promotion.mp3',
+    'wrong':     'audio/wrong.mp3',
+    'win':       'audio/win.mp3',
+    'turn':      'audio/turn.mp3',
+  };
+
   void _initializeAudio() async {
-    try {
-      _effectPlayer = AudioPlayer();
-      _loopPlayer = AudioPlayer();
-      // Listen for effect player state changes to resume background
-      _effectPlayer.onPlayerStateChanged.listen((state) {
-        if (state == PlayerState.stopped || state == PlayerState.completed) {
-          _resumeBackground();
-        }
-      });
-    } catch (_) {
-      // Audio players failed to initialize, continue without them.
-    }
-
-    // Try to start background music after a short delay
-    Future.delayed(const Duration(milliseconds: 500), () async {
+    // Pre-load every effect sound into its own player.
+    for (final entry in _effectKeys.entries) {
       try {
-        _backgroundPlayer = AudioPlayer();
-        await _backgroundPlayer.setReleaseMode(ReleaseMode.loop);
-        await _backgroundPlayer.play(AssetSource('audio/background.mp3'));
-      } catch (_) {
-        // Background music failed, continue without it.
-      }
-    });
-  }
-
-  Future<void> _pauseBackground() async {
-    try {
-      if (_backgroundPlayer.state == PlayerState.playing) {
-        await _backgroundPlayer.pause();
-      }
-    } catch (_) {
-      // Silent fail
+        final p = AudioPlayer();
+        await p.setVolume(1.0);
+        await p.setReleaseMode(ReleaseMode.stop);
+        await p.setSource(AssetSource(entry.value));
+        _soundPlayers[entry.key] = p;
+      } catch (_) {}
     }
-  }
 
-  Future<void> _resumeBackground() async {
+    // Pre-load question loop player.
     try {
-      if (_backgroundPlayer.state == PlayerState.paused) {
-        await _backgroundPlayer.resume();
-      }
-    } catch (_) {
-      // Silent fail
-    }
-  }
+      _loopPlayer = AudioPlayer();
+      await _loopPlayer!.setVolume(1.0);
+      await _loopPlayer!.setReleaseMode(ReleaseMode.loop);
+      await _loopPlayer!.setSource(AssetSource('audio/question.mp3'));
+    } catch (_) {}
 
-  Future<void> _playEffectSoundWithBackgroundPause(String assetPath) async {
+    // Pre-load background player — source ready, waits for first tap to resume.
     try {
-      await _pauseBackground();
-      await _effectPlayer.play(AssetSource(assetPath));
-    } catch (_) {
-      // Sound failed, continue
-    }
+      _backgroundPlayer = AudioPlayer();
+      await _backgroundPlayer!.setVolume(0.3);
+      await _backgroundPlayer!.setReleaseMode(ReleaseMode.loop);
+      await _backgroundPlayer!.setSource(AssetSource('audio/background.mp3'));
+    } catch (_) {}
   }
 
-  void _playSelectSound() {
-    _playEffectSoundWithBackgroundPause('audio/select.mp3');
+  // Called on first user tap — satisfies browser autoplay policy.
+  void _startBackgroundIfNeeded() async {
+    if (_audioStarted) return;
+    _audioStarted = true;
+    try {
+      await _backgroundPlayer?.resume();
+    } catch (_) {}
   }
 
-  void _playMoveSound() {
-    _playEffectSoundWithBackgroundPause('audio/move.mp3');
+  // Replay a pre-loaded effect sound with zero latency.
+  void _playEffectSound(String key) async {
+    final p = _soundPlayers[key];
+    if (p == null) return;
+    try {
+      await p.seek(Duration.zero);
+      await p.resume();
+    } catch (_) {}
   }
 
-  void _playCaptureSound() {
-    _playEffectSoundWithBackgroundPause('audio/capture.mp3');
-  }
+  void _playSelectSound()    => _playEffectSound('select');
+  void _playMoveSound()      => _playEffectSound('move');
+  void _playCaptureSound()   => _playEffectSound('capture');
+  void _playCorrectSound()   => _playEffectSound('promotion');
+  void _playWrongSound()     => _playEffectSound('wrong');
+  void _playPromotionSound() => _playEffectSound('promotion');
+  void _playWinSound()       => _playEffectSound('win');
+  void _playTurnChangeSound() => _playEffectSound('turn');
 
   void _playQuestionSound() async {
     try {
-      await _pauseBackground();
-      await _loopPlayer.setReleaseMode(ReleaseMode.loop);
-      await _loopPlayer.play(AssetSource('audio/question.mp3'));
-    } catch (_) {
-      // Sound failed, continue
-    }
+      await _loopPlayer?.seek(Duration.zero);
+      await _loopPlayer?.resume();
+    } catch (_) {}
   }
 
   void _stopQuestionSound() {
-    try {
-      _loopPlayer.stop();
-      _resumeBackground();
-    } catch (_) {
-      // Sound failed, continue
-    }
-  }
-
-  void _playCorrectSound() {
-    _playEffectSoundWithBackgroundPause('audio/promotion.mp3');
-  }
-
-  void _playWrongSound() {
-    _playEffectSoundWithBackgroundPause('audio/wrong.mp3');
-  }
-
-  void _playPromotionSound() {
-    _playEffectSoundWithBackgroundPause('audio/promotion.mp3');
-  }
-
-  void _playWinSound() {
-    _playEffectSoundWithBackgroundPause('audio/win.mp3');
-  }
-
-  void _playTurnChangeSound() {
-    _playEffectSoundWithBackgroundPause('audio/turn.mp3');
+    try { _loopPlayer?.stop(); } catch (_) {}
   }
 
   void _storeLeaderboard() {
@@ -343,6 +325,7 @@ class _HomeScreenState extends State<HomeScreen>
     wisdomOrbs = 0;
     correctAnswerCount = 0;
     madeIncorrectAnswer = false;
+    _consecutiveCaptureCount = 0;
 
     // Shuffle all question indices for this game
     _shuffledQuestionIndices = List.generate(gesQuestions.length, (i) => i);
@@ -463,6 +446,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _handleCellTap(int row, int col) {
+    _startBackgroundIfNeeded();
     if (!isPlayerTurn || isAskingQuestion || gameOver) {
       return;
     }
@@ -688,23 +672,26 @@ class _HomeScreenState extends State<HomeScreen>
       _showMessage('Correct! +$earnedCoins coins', 'Move unlocked and scored.',
           Colors.green);
 
+      _consecutiveCaptureCount += 1;
+
       // Future.delayed is used to ensure the piece has been updated in the UI
       Future.delayed(const Duration(milliseconds: 400), () {
         if (mounted && isPlayerTurn) {
-          // Check for chain captures after the move is applied
+          // Allow chain captures only if under the per-turn cap
           final movedPiece = _pieceAt(destRow, destCol);
-          if (movedPiece != null && _isCaptureMove(piece, destRow, destCol)) {
+          if (_consecutiveCaptureCount < _maxCapturesPerTurn &&
+              movedPiece != null &&
+              _isCaptureMove(piece, destRow, destCol)) {
             final chainCaptures = _getChainCaptures(movedPiece);
             if (chainCaptures.isNotEmpty) {
-              // Chain captures available - keep the piece selected and allow next capture
               setState(() {
                 selectedPiece = movedPiece;
-                statusText = 'Chain capture available! Select your next move.';
+                statusText = 'Chain capture! Select your next capture.';
               });
               return;
             }
           }
-          // No chain captures - end the turn
+          // No chain captures or cap reached — end the turn
           _endPlayerTurn();
         }
       });
@@ -825,57 +812,77 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _endPlayerTurn() {
     if (gameOver) return;
+    _consecutiveCaptureCount = 0;
     _playTurnChangeSound();
     setState(() {
       selectedPiece = null;
       isPlayerTurn = false;
       statusText = 'AI thinking...';
     });
-    Future.delayed(const Duration(milliseconds: 800), _aiTurn);
+    Future.delayed(const Duration(milliseconds: 800), () => _aiTurn(0));
   }
 
-  void _aiTurn() {
+  void _aiTurn(int captureCount, [Piece? chainPiece]) {
     if (gameOver) return;
-    final aiPieces = pieces.where((piece) => !piece.isPlayer).toList();
-    final validMoves = <Map<String, dynamic>>[];
 
-    for (final piece in aiPieces) {
+    List<Map<String, dynamic>> validMoves;
+
+    if (chainPiece != null) {
+      // Chaining: only capture moves for the same piece
+      validMoves = [];
       for (var row = 0; row < boardSize; row++) {
         for (var col = 0; col < boardSize; col++) {
-          if (_isValidMove(piece, row, col)) {
-            validMoves.add({'piece': piece, 'row': row, 'col': col});
+          if (_isValidMove(chainPiece, row, col) &&
+              _isCaptureMove(chainPiece, row, col)) {
+            validMoves.add({'piece': chainPiece, 'row': row, 'col': col});
           }
         }
       }
-    }
-
-    if (validMoves.isEmpty) {
-      setState(() {
-        isPlayerTurn = true;
-        statusText = 'AI can’t move. Player turn.';
-      });
-      return;
-    }
-
-    final captureMoves = validMoves.where((move) {
-      final piece = move['piece'] as Piece;
-      final row = move['row'] as int;
-      final col = move['col'] as int;
-      return _isCaptureMove(piece, row, col);
-    }).toList();
-
-    final moveList = captureMoves.isNotEmpty ? captureMoves : validMoves;
-    Map<String, dynamic> move;
-    if (captureMoves.isEmpty && currentLevel >= 3) {
-      moveList.sort((a, b) {
-        final aRow = (a['row'] as int);
-        final bRow = (b['row'] as int);
-        return bRow.compareTo(aRow);
-      });
-      move = moveList.first;
+      if (validMoves.isEmpty) {
+        setState(() {
+          isPlayerTurn = true;
+          statusText = 'AI moved. Player turn.';
+        });
+        return;
+      }
     } else {
-      move = moveList[_random.nextInt(moveList.length)];
+      // Normal turn: all AI pieces
+      validMoves = [];
+      final aiPieces = pieces.where((p) => !p.isPlayer).toList();
+      for (final piece in aiPieces) {
+        for (var row = 0; row < boardSize; row++) {
+          for (var col = 0; col < boardSize; col++) {
+            if (_isValidMove(piece, row, col)) {
+              validMoves.add({'piece': piece, 'row': row, 'col': col});
+            }
+          }
+        }
+      }
+      if (validMoves.isEmpty) {
+        setState(() {
+          isPlayerTurn = true;
+          statusText = "AI can't move. Player turn.";
+        });
+        return;
+      }
+
+      // Prefer captures on a normal turn
+      final captureMoves = validMoves.where((move) {
+        final p = move['piece'] as Piece;
+        final r = move['row'] as int;
+        final c = move['col'] as int;
+        return _isCaptureMove(p, r, c);
+      }).toList();
+
+      if (captureMoves.isNotEmpty) {
+        validMoves = captureMoves;
+      } else if (currentLevel >= 3) {
+        validMoves.sort((a, b) =>
+            (b['row'] as int).compareTo(a['row'] as int));
+      }
     }
+
+    final move = validMoves[_random.nextInt(validMoves.length)];
     final piece = move['piece'] as Piece;
     final row = move['row'] as int;
     final col = move['col'] as int;
@@ -884,24 +891,34 @@ class _HomeScreenState extends State<HomeScreen>
     _applyMove(piece, row, col);
 
     if (isCapture) {
-      final movedPiece = _pieceAt(row, col);
-      if (movedPiece != null) {
-        final chainCaptures = _getChainCaptures(movedPiece);
-        if (chainCaptures.isNotEmpty) {
-          setState(() {
-            isPlayerTurn = false;
-            statusText = 'AI continues capture...';
-          });
-          Future.delayed(const Duration(milliseconds: 800), _aiTurn);
-          return;
+      // Wait for _applyMove's 300ms captured-piece removal before checking
+      // chain captures — otherwise the dead piece is still on the board and
+      // _getChainCaptures incorrectly finds it as a jump target.
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (!mounted || gameOver) return;
+        if (captureCount + 1 < _maxCapturesPerTurn) {
+          final movedPiece = _pieceAt(row, col);
+          if (movedPiece != null && _getChainCaptures(movedPiece).isNotEmpty) {
+            setState(() {
+              isPlayerTurn = false;
+              statusText = 'AI continues capture...';
+            });
+            Future.delayed(const Duration(milliseconds: 600),
+                () => _aiTurn(captureCount + 1, movedPiece));
+            return;
+          }
         }
-      }
+        setState(() {
+          isPlayerTurn = true;
+          statusText = 'AI moved. Player turn.';
+        });
+      });
+    } else {
+      setState(() {
+        isPlayerTurn = true;
+        statusText = 'AI moved. Player turn.';
+      });
     }
-
-    setState(() {
-      isPlayerTurn = true;
-      statusText = 'AI moved. Player turn.';
-    });
   }
 
   void _showVictoryDialog() {
@@ -1076,33 +1093,21 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildCoinImage() {
-    return SizedBox(
+    return Container(
       width: 40,
       height: 40,
-      child: Image.asset(
-        'assets/images/coin.png',
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) {
-          // Fallback to gold circle if image not found
-          return Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: accentGold,
-              boxShadow: [
-                BoxShadow(
-                  color: accentGold.withAlpha(115),
-                  blurRadius: 12,
-                  spreadRadius: 3,
-                ),
-              ],
-            ),
-            child: const Icon(Icons.monetization_on,
-                color: Colors.white, size: 24),
-          );
-        },
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: accentGold,
+        boxShadow: [
+          BoxShadow(
+            color: accentGold.withAlpha(115),
+            blurRadius: 12,
+            spreadRadius: 3,
+          ),
+        ],
       ),
+      child: const Icon(Icons.monetization_on, color: Colors.white, size: 24),
     );
   }
 
@@ -1148,29 +1153,69 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _promptSaveScore() {
-    final nameController = TextEditingController(text: 'Learner');
+    final nameController = TextEditingController(text: playerName);
+    final tagController = TextEditingController(text: schoolTag);
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Save your score'),
-          content: TextField(
-            controller: nameController,
-            decoration: const InputDecoration(labelText: 'Your name'),
+          backgroundColor: const Color(0xFF2a2a2a),
+          title: const Text('Save your score',
+              style: TextStyle(color: accentGold, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Your name',
+                  labelStyle: TextStyle(color: Colors.white54),
+                  enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24)),
+                  focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: accentGold)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: tagController,
+                style: const TextStyle(color: Colors.white),
+                maxLength: 10,
+                decoration: const InputDecoration(
+                  labelText: 'School tag (max 10 chars)',
+                  labelStyle: TextStyle(color: Colors.white54),
+                  hintText: 'e.g. GHANASS',
+                  hintStyle: TextStyle(color: Colors.white24),
+                  counterStyle: TextStyle(color: Colors.white38),
+                  enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24)),
+                  focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: accentGold)),
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: accentGold),
               onPressed: () {
                 final name = nameController.text.trim();
                 if (name.isEmpty) return;
+                final tag = tagController.text.trim();
+                setState(() {
+                  playerName = name;
+                  schoolTag = tag;
+                });
+                _storePlayerInfo();
                 Navigator.pop(context);
-                _saveLeaderboardEntry(name);
+                _saveLeaderboardEntry(name, tag);
               },
-              child: const Text('Save'),
+              child: const Text('Save', style: TextStyle(color: Colors.black)),
             ),
           ],
         );
@@ -1178,19 +1223,20 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _saveLeaderboardEntry(String name) async {
+  void _saveLeaderboardEntry(String name, String tag) async {
     final existingIndex =
         leaderboardEntries.indexWhere((entry) => entry.name == name);
     if (existingIndex != -1) {
       final current = leaderboardEntries[existingIndex];
       leaderboardEntries[existingIndex] = LeaderboardEntry(
         name: name,
+        schoolTag: tag.isNotEmpty ? tag : current.schoolTag,
         score: max(current.score, playerScore),
         wins: current.wins + 1,
       );
     } else {
       leaderboardEntries.add(
-        LeaderboardEntry(name: name, score: playerScore, wins: 1),
+        LeaderboardEntry(name: name, schoolTag: tag, score: playerScore, wins: 1),
       );
     }
     leaderboardEntries.sort((a, b) {
@@ -1200,7 +1246,7 @@ class _HomeScreenState extends State<HomeScreen>
     _storeLeaderboard();
 
     if (cloudLeaderboardEnabled) {
-      await _leaderboardService.saveCloudEntry(name, playerScore, 1);
+      await _leaderboardService.saveCloudEntry(name, tag, playerScore, 1);
       await _loadCloudLeaderboard();
     }
 
@@ -1313,20 +1359,30 @@ class _HomeScreenState extends State<HomeScreen>
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 6.0),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text('#$index',
                                   style: const TextStyle(
                                       color: accentGold,
                                       fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 8),
                               Expanded(
-                                child: Text(data.name,
-                                    style: const TextStyle(color: Colors.white),
-                                    overflow: TextOverflow.ellipsis),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(data.name,
+                                        style: const TextStyle(color: Colors.white),
+                                        overflow: TextOverflow.ellipsis),
+                                    if (data.schoolTag.isNotEmpty)
+                                      Text(data.schoolTag,
+                                          style: const TextStyle(
+                                              color: accentGold,
+                                              fontSize: 11),
+                                          overflow: TextOverflow.ellipsis),
+                                  ],
+                                ),
                               ),
                               Text('${data.score}pts',
-                                  style:
-                                      const TextStyle(color: Colors.white70)),
+                                  style: const TextStyle(color: Colors.white70)),
                             ],
                           ),
                         );
@@ -1367,16 +1423,27 @@ class _HomeScreenState extends State<HomeScreen>
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6.0),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text('#$index',
                                 style: const TextStyle(
                                     color: accentGold,
                                     fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 8),
                             Expanded(
-                              child: Text(data.name,
-                                  style: const TextStyle(color: Colors.white),
-                                  overflow: TextOverflow.ellipsis),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(data.name,
+                                      style: const TextStyle(color: Colors.white),
+                                      overflow: TextOverflow.ellipsis),
+                                  if (data.schoolTag.isNotEmpty)
+                                    Text(data.schoolTag,
+                                        style: const TextStyle(
+                                            color: accentGold,
+                                            fontSize: 11),
+                                        overflow: TextOverflow.ellipsis),
+                                ],
+                              ),
                             ),
                             Text('${data.score}pts',
                                 style: const TextStyle(color: Colors.white70)),
@@ -1461,15 +1528,10 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Image.asset(
-                        'assets/images/coin.png',
-                        width: 20,
-                        height: 20,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.monetization_on,
-                          color: Color(0xFFFCD116),
-                          size: 16,
-                        ),
+                      const Icon(
+                        Icons.monetization_on,
+                        color: Color(0xFFFCD116),
+                        size: 16,
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -1588,15 +1650,10 @@ class _HomeScreenState extends State<HomeScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset(
-                    'assets/images/coin.png',
-                    width: 14,
-                    height: 14,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.monetization_on,
-                      color: Color(0xFFFCD116),
-                      size: 12,
-                    ),
+                  const Icon(
+                    Icons.monetization_on,
+                    color: Color(0xFFFCD116),
+                    size: 12,
                   ),
                   const SizedBox(width: 3),
                   Text(

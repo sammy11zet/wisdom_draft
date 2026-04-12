@@ -30,18 +30,19 @@ class LeaderboardService {
     await _localBox.put('topLearners', data);
   }
 
-  Future<void> saveLocalEntry(String name, int score, int wins) async {
+  Future<void> saveLocalEntry(String name, String schoolTag, int score, int wins) async {
     final entries = loadLocalEntries();
     final existingIndex = entries.indexWhere((entry) => entry.name == name);
     if (existingIndex != -1) {
       final current = entries[existingIndex];
       entries[existingIndex] = LeaderboardEntry(
         name: name,
+        schoolTag: schoolTag.isNotEmpty ? schoolTag : current.schoolTag,
         score: max(current.score, score),
         wins: current.wins + wins,
       );
     } else {
-      entries.add(LeaderboardEntry(name: name, score: score, wins: wins));
+      entries.add(LeaderboardEntry(name: name, schoolTag: schoolTag, score: score, wins: wins));
     }
     entries.sort((a, b) {
       if (b.score != a.score) return b.score.compareTo(a.score);
@@ -66,7 +67,7 @@ class LeaderboardService {
     }).toList();
   }
 
-  Future<void> saveCloudEntry(String name, int score, int wins) async {
+  Future<void> saveCloudEntry(String name, String schoolTag, int score, int wins) async {
     if (!cloudEnabled) return;
 
     final collection = _firestore!.collection('leaderboard');
@@ -78,9 +79,11 @@ class LeaderboardService {
 
     final cloudScore = existingEntry == null ? score : max(existingEntry.score, score);
     final cloudWins = existingEntry == null ? wins : existingEntry.wins + wins;
+    final cloudTag = schoolTag.isNotEmpty ? schoolTag : (existingEntry?.schoolTag ?? '');
 
     final payload = {
       'name': name,
+      'schoolTag': cloudTag,
       'score': cloudScore,
       'wins': cloudWins,
       'updatedAt': FieldValue.serverTimestamp(),
