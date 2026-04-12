@@ -55,7 +55,6 @@ class _HomeScreenState extends State<HomeScreen>
   int coinBalance = 0;
   int currentLevel = 1;
   int currentStreak = 0;
-  int wisdomOrbs = 0;
   int correctAnswerCount = 0;
   int secondsPerQuestion = 20;
   int timeRemaining = 15;
@@ -324,7 +323,6 @@ class _HomeScreenState extends State<HomeScreen>
     gameOver = false;
     playerScore = 0;
     currentStreak = 0;
-    wisdomOrbs = 0;
     correctAnswerCount = 0;
     madeIncorrectAnswer = false;
     _consecutiveCaptureCount = 0;
@@ -654,12 +652,10 @@ class _HomeScreenState extends State<HomeScreen>
       playerScore += question.points;
       correctAnswerCount += 1;
       currentStreak += 1;
-      wisdomOrbs += 1;
       _unlockAchievement('Wise Streak', 'Current streak: $currentStreak');
 
       if (currentStreak == 5) {
         _unlockAchievement('Wisdom Warrior', '5 correct answers in a row');
-        wisdomOrbs += 1;
       }
 
       if (_isCaptureMove(piece, destRow, destCol) && !firstCaptureAchievement) {
@@ -1549,14 +1545,7 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildMetricChip('Score', playerScore.toString(), accentGold),
-                const SizedBox(width: 10),
-                _buildMetricChip(
-                    'Orbs', wisdomOrbs.toString(), accentGold.withAlpha(217)),
-              ],
-            ),
+            _buildMetricChip('Score', playerScore.toString(), accentGold),
           ],
         ),
         Column(
@@ -1670,9 +1659,6 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             _buildMetricChip('Score', playerScore.toString(), accentGold,
-                compact: true),
-            _buildMetricChip(
-                'Orbs', wisdomOrbs.toString(), accentGold.withAlpha(217),
                 compact: true),
           ],
         ),
