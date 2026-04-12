@@ -1,38 +1,92 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Wisdom Draft – GES Art Studio Learning Game">
+
+  <!-- Viewport: critical for correct mobile scaling -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="wisdom_draft">
+  <meta name="apple-mobile-web-app-title" content="Wisdom Draft">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>wisdom_draft</title>
+  <title>Wisdom Draft</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #1E1E1E;
+    }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: #1E1E1E;
+      color: #FCD116;
+      font-family: sans-serif;
+      gap: 20px;
+      z-index: 9999;
+    }
+
+    #loading .title {
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+
+    #loading .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #333;
+      border-top-color: #FCD116;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    #loading .subtitle {
+      font-size: 13px;
+      color: #888;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
+
+  <!-- Loading screen shown while Flutter initialises -->
+  <div id="loading">
+    <div class="title">WISDOM DRAFT</div>
+    <div class="spinner"></div>
+    <div class="subtitle">Loading GES Art Studio…</div>
+  </div>
+
+  <script>
+    // Remove the loading screen once Flutter is ready
+    window.addEventListener('flutter-first-frame', function () {
+      var loading = document.getElementById('loading');
+      if (loading) loading.remove();
+    });
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
