@@ -80,8 +80,36 @@
   </div>
 
   <script>
+    // Catch JavaScript errors and display them instead of blank screen
+    window.onerror = function(msg, src, line, col, err) {
+      var el = document.getElementById('loading');
+      if (el) {
+        el.innerHTML =
+          '<div style="color:#CE1126;padding:24px;text-align:center;max-width:320px">' +
+          '<div style="font-size:18px;font-weight:bold;margin-bottom:12px">Failed to load game</div>' +
+          '<div style="font-size:12px;color:#aaa;word-break:break-word;margin-bottom:16px">' + msg + '</div>' +
+          '<button onclick="location.reload()" style="padding:10px 24px;background:#FCD116;color:#000;border:none;border-radius:6px;font-size:14px;cursor:pointer">Retry</button>' +
+          '</div>';
+      }
+      return false;
+    };
+
+    // Show timeout message if Flutter hasn't started within 25 seconds
+    var _loadTimeout = setTimeout(function() {
+      var el = document.getElementById('loading');
+      if (el) {
+        el.innerHTML =
+          '<div style="color:#FCD116;padding:24px;text-align:center;max-width:320px">' +
+          '<div style="font-size:18px;font-weight:bold;margin-bottom:12px">Taking too long</div>' +
+          '<div style="font-size:13px;color:#888;margin-bottom:16px">The game is taking longer than expected to load. Please check your connection and try again.</div>' +
+          '<button onclick="location.reload()" style="padding:10px 24px;background:#FCD116;color:#000;border:none;border-radius:6px;font-size:14px;cursor:pointer">Retry</button>' +
+          '</div>';
+      }
+    }, 25000);
+
     // Remove the loading screen once Flutter is ready
     window.addEventListener('flutter-first-frame', function () {
+      clearTimeout(_loadTimeout);
       var loading = document.getElementById('loading');
       if (loading) loading.remove();
     });
