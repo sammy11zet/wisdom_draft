@@ -1140,8 +1140,20 @@ class _HomeScreenState extends State<HomeScreen>
 
   int _getNextQuestionIndex() {
     if (_currentQuestionPosition >= _shuffledQuestionIndices.length) {
-      // Reshuffle when we've gone through all questions
+      // Remember the last third of the deck so they don't repeat at the top
+      // of the next round.
+      final recentCount = gesQuestions.length ~/ 3; // ~16 questions
+      final recent = _shuffledQuestionIndices
+          .sublist(_shuffledQuestionIndices.length - recentCount)
+          .toSet();
+
       _shuffledQuestionIndices.shuffle(_random);
+
+      // Partition: non-recent first, recent last — so fresh questions always
+      // come before ones the player just saw.
+      final fresh  = _shuffledQuestionIndices.where((i) => !recent.contains(i)).toList();
+      final deferred = _shuffledQuestionIndices.where((i) =>  recent.contains(i)).toList();
+      _shuffledQuestionIndices = [...fresh, ...deferred];
       _currentQuestionPosition = 0;
     }
 
