@@ -1488,14 +1488,25 @@ class _HomeScreenState extends State<HomeScreen>
           ? const EdgeInsets.fromLTRB(12, 12, 12, 12)
           : const EdgeInsets.fromLTRB(24, 40, 24, 20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [turnColor.withAlpha(242), backgroundColor],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
+        ),
+        // Kente cloth photo as the underlay
+        image: const DecorationImage(
+          image: AssetImage('assets/images/kente.jpg'),
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+        ),
+        // Red gradient overlay on top of the kente image
+        gradient: LinearGradient(
+          colors: [
+            turnColor.withAlpha(210),
+            turnColor.withAlpha(140),
+            Colors.transparent,
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
       ),
       child: isMobile ? _buildMobileHeader() : _buildDesktopHeader(),
