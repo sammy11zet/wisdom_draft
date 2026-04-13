@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,16 +9,29 @@ import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  await Hive.openBox('leaderboard');
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  final firebaseOptions = DefaultFirebaseOptions.currentPlatform;
-  if (firebaseOptions.apiKey != 'YOUR_API_KEY') {
-    await Firebase.initializeApp(options: firebaseOptions);
-  }
+    // Hive uses IndexedDB on web; iOS Safari private mode can restrict it.
+    // Wrap in try-catch so the game still starts even if storage fails.
+    try {
+      await Hive.initFlutter();
+      await Hive.openBox('leaderboard');
+    } catch (_) {
+      // Continue without local storage — game is still fully playable.
+    }
 
-  runApp(const WisdomDraftApp());
+    try {
+      final firebaseOptions = DefaultFirebaseOptions.currentPlatform;
+      if (firebaseOptions.apiKey != 'YOUR_API_KEY') {
+        await Firebase.initializeApp(options: firebaseOptions);
+      }
+    } catch (_) {}
+
+    runApp(const WisdomDraftApp());
+  }, (error, stack) {
+    debugPrint('Unhandled Dart error: $error\n$stack');
+  });
 }
 
 class WisdomDraftApp extends StatelessWidget {

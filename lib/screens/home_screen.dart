@@ -34,8 +34,8 @@ class _HomeScreenState extends State<HomeScreen>
   static const Color accentGold = Color(0xFFFCD116);
 
   final Random _random = Random();
-  late final Box _leaderboardBox;
-  late final LeaderboardService _leaderboardService;
+  Box? _leaderboardBox;
+  LeaderboardService? _leaderboardService;
 
   static const int _maxCapturesPerTurn = 3;
 
@@ -88,12 +88,21 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _leaderboardBox = Hive.box('leaderboard');
-    _leaderboardService = LeaderboardService(
-      _leaderboardBox,
-      Firebase.apps.isNotEmpty ? FirebaseFirestore.instance : null,
-    );
-    cloudLeaderboardEnabled = _leaderboardService.cloudEnabled;
+    try {
+      _leaderboardBox = Hive.isBoxOpen('leaderboard')
+          ? Hive.box('leaderboard')
+          : null;
+      if (_leaderboardBox != null) {
+        _leaderboardService = LeaderboardService(
+          _leaderboardBox!,
+          Firebase.apps.isNotEmpty ? FirebaseFirestore.instance : null,
+        );
+      }
+    } catch (_) {
+      _leaderboardBox = null;
+      _leaderboardService = null;
+    }
+    cloudLeaderboardEnabled = _leaderboardService?.cloudEnabled ?? false;
     _loadPlayerInfo();
     _loadLeaderboard();
     _initializeBoard();
@@ -123,19 +132,22 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _loadPlayerInfo() {
+    if (_leaderboardBox == null) return;
     playerName =
-        _leaderboardBox.get('playerName', defaultValue: 'Learner') as String;
+        _leaderboardBox!.get('playerName', defaultValue: 'Learner') as String;
     schoolTag =
-        _leaderboardBox.get('schoolTag', defaultValue: '') as String;
+        _leaderboardBox!.get('schoolTag', defaultValue: '') as String;
   }
 
   void _storePlayerInfo() {
-    _leaderboardBox.put('playerName', playerName);
-    _leaderboardBox.put('schoolTag', schoolTag);
+    if (_leaderboardBox == null) return;
+    _leaderboardBox!.put('playerName', playerName);
+    _leaderboardBox!.put('schoolTag', schoolTag);
   }
 
   void _loadLeaderboard() {
-    final raw = _leaderboardBox.get('topLearners', defaultValue: <dynamic>[])
+    if (_leaderboardBox == null) return;
+    final raw = _leaderboardBox!.get('topLearners', defaultValue: <dynamic>[])
         as List<dynamic>;
     leaderboardEntries = raw
         .whereType<Map<dynamic, dynamic>>()
@@ -229,8 +241,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _storeLeaderboard() {
+    if (_leaderboardBox == null) return;
     final data = leaderboardEntries.map((entry) => entry.toMap()).toList();
-    _leaderboardBox.put('topLearners', data);
+    _leaderboardBox!.put('topLearners', data);
   }
 
   Future<void> _loadCloudLeaderboard() async {
@@ -242,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     try {
       cloudLeaderboardEntries =
-          await _leaderboardService.fetchCloudTopEntries(limit: 20);
+          await _leaderboardService!.fetchCloudTopEntries(limit: 20);
       if (cloudLeaderboardEntries.isEmpty) {
         cloudStatusMessage = 'No global leaderboard entries yet.';
       }
@@ -1256,7 +1269,7 @@ class _HomeScreenState extends State<HomeScreen>
     _storeLeaderboard();
 
     if (cloudLeaderboardEnabled) {
-      await _leaderboardService.saveCloudEntry(name, tag, playerScore, 1);
+      await _leaderboardService?.saveCloudEntry(name, tag, playerScore, 1);
       await _loadCloudLeaderboard();
     }
 
@@ -1265,6 +1278,43 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    try {
+      return _buildApp(context);
+    } catch (e) {
+      // Show the error on screen instead of a blank grey frame
+      return Scaffold(
+        backgroundColor: const Color(0xFF1E1E1E),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, color: Color(0xFFCE1126), size: 48),
+                const SizedBox(height: 16),
+                const Text('Failed to render game',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(e.toString(),
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => setState(() {}),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFCD116),
+                      foregroundColor: Colors.black),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildApp(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
     return Scaffold(
       backgroundColor: backgroundColor,
