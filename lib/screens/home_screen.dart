@@ -26,7 +26,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   static const int boardSize = 8;
-  static const Color backgroundColor = Color(0xFF1E1E1E);
   static const Color lightTileColor = Color(0xFFD7CCC8);
   static const Color darkTileColor = Color(0xFF6D4C41);
   static const Color playerColor = Color(0xFFCE1126);
@@ -1267,59 +1266,73 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton(
         onPressed: _showLeaderboardDialog,
         backgroundColor: accentGold,
         foregroundColor: Colors.black,
         child: const Icon(Icons.leaderboard),
       ),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
+      body: Stack(
+        children: [
+          // Layer 1: Kente cloth pattern (full screen underlay)
+          Positioned.fill(
+            child: CustomPaint(painter: _KentePainter()),
+          ),
+          // Layer 2: Dark overlay so game content stays readable
+          Positioned.fill(
+            child: Container(color: Colors.black.withValues(alpha: 0.58)),
+          ),
+          // Layer 3: Game content
+          SafeArea(
+            child: Stack(
               children: [
-                _buildHeader(isMobile),
-                Expanded(
-                  child: Center(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        double size = constraints.maxWidth < 600
-                            ? constraints.maxWidth * 0.95
-                            : 550;
-                        double boardSize = size < constraints.maxHeight * 0.85
-                            ? size
-                            : constraints.maxHeight * 0.85;
+                Column(
+                  children: [
+                    _buildHeader(isMobile),
+                    Expanded(
+                      child: Center(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            double size = constraints.maxWidth < 600
+                                ? constraints.maxWidth * 0.95
+                                : 550;
+                            double boardSize =
+                                size < constraints.maxHeight * 0.85
+                                    ? size
+                                    : constraints.maxHeight * 0.85;
 
-                        return SizedBox(
-                          width: boardSize,
-                          height: boardSize,
-                          child: GridView.builder(
-                            itemCount: 8 * 8,
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 8,
-                              crossAxisSpacing: 4,
-                              mainAxisSpacing: 4,
-                              childAspectRatio: 1.0,
-                            ),
-                            itemBuilder: (context, index) {
-                              final row = index ~/ 8;
-                              final col = index % 8;
-                              return _buildBoardCell(row, col);
-                            },
-                          ),
-                        );
-                      },
+                            return SizedBox(
+                              width: boardSize,
+                              height: boardSize,
+                              child: GridView.builder(
+                                itemCount: 8 * 8,
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 8,
+                                  crossAxisSpacing: 4,
+                                  mainAxisSpacing: 4,
+                                  childAspectRatio: 1.0,
+                                ),
+                                itemBuilder: (context, index) {
+                                  final row = index ~/ 8;
+                                  final col = index % 8;
+                                  return _buildBoardCell(row, col);
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                  ),
+                    _buildFooter(isMobile),
+                  ],
                 ),
-                _buildFooter(isMobile),
+                if (showCoinBurst) _buildCoinAnimation(),
               ],
             ),
-            if (showCoinBurst) _buildCoinAnimation(),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1482,18 +1495,13 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildHeader(bool isMobile) {
-    final turnColor = isPlayerTurn ? playerColor : aiColor;
     return Container(
       padding: isMobile
           ? const EdgeInsets.fromLTRB(12, 12, 12, 12)
-          : const EdgeInsets.fromLTRB(24, 40, 24, 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [turnColor.withAlpha(242), backgroundColor],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: const BorderRadius.only(
+          : const EdgeInsets.fromLTRB(24, 20, 24, 20),
+      decoration: const BoxDecoration(
+        color: playerColor, // Always Ghana red — the fixed top overlay bar
+        borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
         ),
@@ -1938,4 +1946,73 @@ class _HomeScreenState extends State<HomeScreen>
       ],
     );
   }
+}
+
+/// Draws a kente-cloth inspired geometric pattern as the app background.
+/// Uses horizontal colour bands (the weft) crossed by vertical warp threads,
+/// matching Ghana's national colours: gold, green, red, and black.
+class _KentePainter extends CustomPainter {
+  // (colour, stripe height in logical pixels)
+  static const _stripes = [
+    (Color(0xFFFCD116), 14.0), // Gold — thick
+    (Color(0xFF000000),  3.0), // Black — thin separator
+    (Color(0xFFCE1126), 10.0), // Red — medium
+    (Color(0xFF000000),  3.0), // Black
+    (Color(0xFF006B3F), 14.0), // Green — thick
+    (Color(0xFF000000),  3.0), // Black
+    (Color(0xFFFFA000), 10.0), // Amber — medium
+    (Color(0xFF000000),  3.0), // Black
+    (Color(0xFFFCD116),  8.0), // Gold — narrow
+    (Color(0xFF1565C0), 10.0), // Blue — medium
+    (Color(0xFF000000),  3.0), // Black
+    (Color(0xFF006B3F),  8.0), // Green — narrow
+    (Color(0xFF000000),  3.0), // Black
+    (Color(0xFFCE1126),  8.0), // Red — narrow
+    (Color(0xFF000000),  3.0), // Black
+    (Color(0xFFFCD116), 14.0), // Gold — thick
+    (Color(0xFF000000),  3.0), // Black
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+
+    // ── Horizontal weft stripes ──────────────────────────────────────────────
+    double y = 0;
+    while (y < size.height) {
+      for (final (color, h) in _stripes) {
+        paint.color = color;
+        canvas.drawRect(Rect.fromLTWH(0, y, size.width, h), paint);
+        y += h;
+        if (y >= size.height) break;
+      }
+    }
+
+    // ── Vertical warp threads ────────────────────────────────────────────────
+    paint.color = const Color(0x55000000);
+    const warpSpacing = 18.0;
+    const warpWidth   =  3.0;
+    for (double x = 0; x < size.width; x += warpSpacing) {
+      canvas.drawRect(Rect.fromLTWH(x, 0, warpWidth, size.height), paint);
+    }
+
+    // ── Small diamond accents at warp×band intersections ────────────────────
+    paint.color = const Color(0x33FFFFFF);
+    const diamondSize = 5.0;
+    const diamondRow  = 28.0; // vertical spacing between diamond rows
+    for (double dx = warpSpacing / 2; dx < size.width; dx += warpSpacing * 2) {
+      for (double dy = diamondRow; dy < size.height; dy += diamondRow * 2) {
+        final path = Path()
+          ..moveTo(dx, dy - diamondSize)
+          ..lineTo(dx + diamondSize, dy)
+          ..lineTo(dx, dy + diamondSize)
+          ..lineTo(dx - diamondSize, dy)
+          ..close();
+        canvas.drawPath(path, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
