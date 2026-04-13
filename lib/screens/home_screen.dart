@@ -1492,11 +1492,13 @@ class _HomeScreenState extends State<HomeScreen>
           bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
         ),
-        // Kente cloth photo as the underlay
-        image: const DecorationImage(
-          image: AssetImage('assets/images/kente.jpg'),
-          fit: BoxFit.cover,
-          alignment: Alignment.center,
+        // Kente cloth photo tiled at reduced opacity behind the gradient
+        image: DecorationImage(
+          image: const AssetImage('assets/images/kente.jpg'),
+          fit: BoxFit.none,
+          repeat: ImageRepeat.repeat,
+          scale: 6.0,   // smaller tiles
+          opacity: 0.18, // very faint so the red gradient dominates
         ),
         // Red gradient overlay on top of the kente image
         gradient: LinearGradient(
