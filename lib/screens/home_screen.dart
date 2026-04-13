@@ -1497,8 +1497,8 @@ class _HomeScreenState extends State<HomeScreen>
           image: const AssetImage('assets/images/kente.jpg'),
           fit: BoxFit.none,
           repeat: ImageRepeat.repeat,
-          scale: 6.0,   // smaller tiles
-          opacity: 0.18, // very faint so the red gradient dominates
+          scale: 3.0,   // twice as large tiles
+          opacity: 0.10, // fainter so red gradient dominates
         ),
         // Red gradient overlay on top of the kente image
         gradient: LinearGradient(

@@ -86677,7 +86677,7 @@ q=A.bG(m.w?"Answer in "+m.dy+" s":m.fy,l,l,l,B.Rz,l,l)
 o=s?A.aB(102,B.cE.C()>>>16&255,B.cE.C()>>>8&255,B.cE.C()&255):A.aB(102,B.d8.C()>>>16&255,B.d8.C()>>>8&255,B.d8.C()&255)
 n=A.iI(20)
 r=A.fV(A.b([p,A.dw(A.b([r,B.hT,q,B.hT,A.i2(l,A.bG(s?"Red Glow: Your Move":"Green Glow: AI Move",l,l,l,B.Qt,l,l),B.A,l,new A.cS(o,l,l,n,l,l,B.ai),l,l,l,l,B.Eo,l,l,l)],e),B.cF,B.a6)],e),B.dp,B.a6)
-s=r}e=A.b([A.dw(A.b([A.i2(l,s,B.A,l,new A.cS(l,new A.tj(B.AN,B.AC,B.nA,6,0.18),l,B.Ae,l,new A.u2(B.A1,B.lr,B.cX,f,l,l),B.ai),l,l,l,l,g,l,l,l),A.a3m(A.mq(A.aLP(new A.amY(m)),l,l)),m.a2r(j)],e),B.aq,B.a6)],e)
+s=r}e=A.b([A.dw(A.b([A.i2(l,s,B.A,l,new A.cS(l,new A.tj(B.AN,B.AC,B.nA,3,0.1),l,B.Ae,l,new A.u2(B.A1,B.lr,B.cX,f,l,l),B.ai),l,l,l,l,g,l,l,l),A.a3m(A.mq(A.aLP(new A.amY(m)),l,l)),m.a2r(j)],e),B.aq,B.a6)],e)
 if(m.ry)e.push(m.a2p())
 return new A.Br(A.NH(!0,A.nD(B.cf,e,B.a_,B.cp),!0),i,B.iK,l)},
 adz(){var s=this.c
