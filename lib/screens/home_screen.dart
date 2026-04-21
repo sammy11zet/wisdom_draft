@@ -63,8 +63,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   String statusText = 'Player turn: select a piece';
   Timer? _questionTimer;
-  List<int> _shuffledQuestionIndices = [];
-  int _currentQuestionPosition = 0;
+  List<int> _unseenPool = [];
+  List<int> _seenPool = [];
   List<LeaderboardEntry> leaderboardEntries = [];
   List<LeaderboardEntry> cloudLeaderboardEntries = [];
   final List<String> achievements = [];
@@ -88,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    _unseenPool = List.generate(gesQuestions.length, (i) => i)..shuffle(_random);
     try {
       _leaderboardBox = Hive.isBoxOpen('leaderboard')
           ? Hive.box('leaderboard')
@@ -340,20 +341,7 @@ class _HomeScreenState extends State<HomeScreen>
     madeIncorrectAnswer = false;
     _consecutiveCaptureCount = 0;
 
-    // Reshuffle questions but defer any recently seen ones to the end
-    final recentCount = gesQuestions.length ~/ 3;
-    final seenCount = _currentQuestionPosition.clamp(0, _shuffledQuestionIndices.length);
-    final recentStart = (seenCount - recentCount).clamp(0, seenCount);
-    final recent = seenCount > 0
-        ? _shuffledQuestionIndices.sublist(recentStart, seenCount).toSet()
-        : <int>{};
-    _shuffledQuestionIndices = List.generate(gesQuestions.length, (i) => i)..shuffle(_random);
-    if (recent.isNotEmpty) {
-      final fresh = _shuffledQuestionIndices.where((i) => !recent.contains(i)).toList();
-      final deferred = _shuffledQuestionIndices.where((i) => recent.contains(i)).toList();
-      _shuffledQuestionIndices = [...fresh, ...deferred];
-    }
-    _currentQuestionPosition = 0;
+    // Pools persist across games — do not reset them here.
 
     statusText = 'Player turn: select a piece';
     timeRemaining = secondsPerQuestion;
@@ -1175,26 +1163,15 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   int _getNextQuestionIndex() {
-    if (_currentQuestionPosition >= _shuffledQuestionIndices.length) {
-      // Remember the last third of the deck so they don't repeat at the top
-      // of the next round.
-      final recentCount = gesQuestions.length ~/ 3; // ~16 questions
-      final recent = _shuffledQuestionIndices
-          .sublist(_shuffledQuestionIndices.length - recentCount)
-          .toSet();
-
-      _shuffledQuestionIndices.shuffle(_random);
-
-      // Partition: non-recent first, recent last — so fresh questions always
-      // come before ones the player just saw.
-      final fresh  = _shuffledQuestionIndices.where((i) => !recent.contains(i)).toList();
-      final deferred = _shuffledQuestionIndices.where((i) =>  recent.contains(i)).toList();
-      _shuffledQuestionIndices = [...fresh, ...deferred];
-      _currentQuestionPosition = 0;
+    if (_unseenPool.isEmpty) {
+      // All questions seen — shuffle the seen pool into unseen and start a new cycle.
+      _unseenPool
+        ..addAll(_seenPool)
+        ..shuffle(_random);
+      _seenPool.clear();
     }
-
-    final index = _shuffledQuestionIndices[_currentQuestionPosition];
-    _currentQuestionPosition++;
+    final index = _unseenPool.removeAt(0);
+    _seenPool.add(index);
     return index;
   }
 
