@@ -1407,20 +1407,19 @@ class _HomeScreenState extends State<HomeScreen>
                     style: TextStyle(
                         color: accentGold, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
-                if (isLoadingCloudLeaderboard)
-                  const CircularProgressIndicator(color: accentGold)
-                else if (cloudLeaderboardEntries.isEmpty)
-                  Text(cloudStatusMessage,
-                      style: const TextStyle(color: Colors.white54))
-                else
-                  Column(
-                    children: [
-                      ...cloudLeaderboardEntries
-                          .take(10)
-                          .toList()
-                          .asMap()
-                          .entries
-                          .map((entry) {
+                FutureBuilder<List<LeaderboardEntry>>(
+                  future: _leaderboardService!.fetchCloudTopEntries(limit: 20),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const CircularProgressIndicator(color: accentGold);
+                    }
+                    final entries = snapshot.data ?? [];
+                    if (entries.isEmpty) {
+                      return const Text('No global entries yet.',
+                          style: TextStyle(color: Colors.white54));
+                    }
+                    return Column(
+                      children: entries.take(10).toList().asMap().entries.map((entry) {
                         final index = entry.key + 1;
                         final data = entry.value;
                         return Padding(
@@ -1453,9 +1452,10 @@ class _HomeScreenState extends State<HomeScreen>
                             ],
                           ),
                         );
-                      }),
-                    ],
-                  ),
+                      }).toList(),
+                    );
+                  },
+                ),
                 const Divider(color: Colors.white24),
               ] else ...[
                 Padding(
