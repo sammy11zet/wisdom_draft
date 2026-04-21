@@ -938,8 +938,8 @@ class _HomeScreenState extends State<HomeScreen>
       builder: (context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF121212),
-          title: Column(
-            children: const [
+          title: const Column(
+            children: [
               Icon(Icons.emoji_events, size: 60, color: Color(0xFFFCD116)),
               SizedBox(height: 12),
               Text('Congratulations!',
@@ -993,8 +993,8 @@ class _HomeScreenState extends State<HomeScreen>
       builder: (context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF121212),
-          title: Column(
-            children: const [
+          title: const Column(
+            children: [
               Icon(Icons.sentiment_dissatisfied,
                   size: 60, color: Colors.redAccent),
               SizedBox(height: 12),
@@ -1364,6 +1364,13 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                 ),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    'Powered by TeamGrok',
+                    style: TextStyle(fontSize: 10, color: Colors.white54),
+                  ),
+                ),
                 _buildFooter(isMobile),
               ],
             ),
@@ -1543,8 +1550,8 @@ class _HomeScreenState extends State<HomeScreen>
           bottomRight: Radius.circular(30),
         ),
         // Kente cloth photo tiled at reduced opacity behind the gradient
-        image: DecorationImage(
-          image: const AssetImage('assets/images/kente.jpg'),
+        image: const DecorationImage(
+          image: AssetImage('assets/images/kente.jpg'),
           fit: BoxFit.none,
           repeat: ImageRepeat.repeat,
           scale: 3.0,   // twice as large tiles
@@ -1952,12 +1959,6 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
             ],
           ),
-          if (!isMobile) const SizedBox(height: 8),
-          if (!isMobile)
-            const Text(
-              'Powered by TeamGrok',
-              style: TextStyle(fontSize: 10, color: Colors.white54),
-            ),
         ],
       ),
     );

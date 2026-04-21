@@ -20,29 +20,29 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'YOUR_API_KEY',
-    authDomain: 'YOUR_AUTH_DOMAIN',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    appId: 'YOUR_APP_ID',
-    measurementId: 'YOUR_MEASUREMENT_ID',
+    apiKey: 'AIzaSyDzsNJIhurRV1fqPUqEW6nBa0Uvb-yj6Bc',
+    authDomain: 'wisdom-draft.firebaseapp.com',
+    projectId: 'wisdom-draft',
+    storageBucket: 'wisdom-draft.firebasestorage.app',
+    messagingSenderId: '160007639419',
+    appId: '1:160007639419:web:c9c0416c4852368ddaadde',
+    measurementId: 'G-CLVJ48S76J',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR_API_KEY',
-    appId: 'YOUR_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
+    apiKey: 'AIzaSyDjQI5DPcT6Q-f-3uHIv7_JdNDaLD88Byk',
+    appId: '1:160007639419:android:f72de5576ae8487fdaadde',
+    messagingSenderId: '160007639419',
+    projectId: 'wisdom-draft',
+    storageBucket: 'wisdom-draft.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR_API_KEY',
-    appId: 'YOUR_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
-    iosBundleId: 'YOUR_IOS_BUNDLE_ID',
+    apiKey: 'AIzaSyCr4zoue1MaRcuO83WYWCmUSrgrg-NU5Zc',
+    appId: '1:160007639419:ios:9b6fd61466237853daadde',
+    messagingSenderId: '160007639419',
+    projectId: 'wisdom-draft',
+    storageBucket: 'wisdom-draft.firebasestorage.app',
+    iosBundleId: 'winsdomdraft',
   );
 }

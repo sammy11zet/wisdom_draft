@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "160007639419",
+    "project_id": "wisdom-draft",
+    "storage_bucket": "wisdom-draft.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:160007639419:android:f72de5576ae8487fdaadde",
+        "android_client_info": {
+          "package_name": "com.wisdomdraft"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjQI5DPcT6Q-f-3uHIv7_JdNDaLD88Byk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
