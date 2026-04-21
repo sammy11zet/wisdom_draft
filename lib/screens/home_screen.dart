@@ -340,9 +340,19 @@ class _HomeScreenState extends State<HomeScreen>
     madeIncorrectAnswer = false;
     _consecutiveCaptureCount = 0;
 
-    // Shuffle all question indices for this game
-    _shuffledQuestionIndices = List.generate(gesQuestions.length, (i) => i);
-    _shuffledQuestionIndices.shuffle(_random);
+    // Reshuffle questions but defer any recently seen ones to the end
+    final recentCount = gesQuestions.length ~/ 3;
+    final seenCount = _currentQuestionPosition.clamp(0, _shuffledQuestionIndices.length);
+    final recentStart = (seenCount - recentCount).clamp(0, seenCount);
+    final recent = seenCount > 0
+        ? _shuffledQuestionIndices.sublist(recentStart, seenCount).toSet()
+        : <int>{};
+    _shuffledQuestionIndices = List.generate(gesQuestions.length, (i) => i)..shuffle(_random);
+    if (recent.isNotEmpty) {
+      final fresh = _shuffledQuestionIndices.where((i) => !recent.contains(i)).toList();
+      final deferred = _shuffledQuestionIndices.where((i) => recent.contains(i)).toList();
+      _shuffledQuestionIndices = [...fresh, ...deferred];
+    }
     _currentQuestionPosition = 0;
 
     statusText = 'Player turn: select a piece';
@@ -559,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _askQuestionForMove(Piece piece, int destRow, int destCol) {
     _playCaptureSound();
-    final question = gesQuestions[_getNextQuestionIndex()];
+    final question = _withShuffledOptions(gesQuestions[_getNextQuestionIndex()]);
     setState(() {
       isAskingQuestion = true;
       timeRemaining = secondsPerQuestion;
@@ -1149,6 +1159,19 @@ class _HomeScreenState extends State<HomeScreen>
       return 'Senior Scholar';
     }
     return 'Art Apprentice';
+  }
+
+  Question _withShuffledOptions(Question q) {
+    final order = List.generate(q.options.length, (i) => i)..shuffle(_random);
+    return Question(
+      id: q.id,
+      text: q.text,
+      options: order.map((i) => q.options[i]).toList(),
+      correctIndex: order.indexOf(q.correctIndex),
+      hint: q.hint,
+      points: q.points,
+      category: q.category,
+    );
   }
 
   int _getNextQuestionIndex() {
