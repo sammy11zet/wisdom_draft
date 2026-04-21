@@ -271,6 +271,171 @@ class _HomeScreenState extends State<HomeScreen>
 
   double get _aiSkill => (0.55 + (currentLevel - 1) * 0.1).clamp(0.55, 0.95);
 
+  // ── Minimax helpers (operate on an isolated board snapshot) ─────────────
+
+  Piece? _mmPieceAt(List<Piece> board, int r, int c) {
+    for (final p in board) {
+      if (p.row == r && p.col == c) return p;
+    }
+    return null;
+  }
+
+  bool _mmPathClear(List<Piece> board, int fr, int fc, int tr, int tc) {
+    final rs = (tr - fr).sign;
+    final cs = (tc - fc).sign;
+    var r = fr + rs;
+    var c = fc + cs;
+    while (r != tr || c != tc) {
+      if (_mmPieceAt(board, r, c) != null) return false;
+      r += rs;
+      c += cs;
+    }
+    return true;
+  }
+
+  Piece? _mmKingCapturePiece(List<Piece> board, Piece piece, int dr, int dc) {
+    final rd = dr - piece.row;
+    final cd = dc - piece.col;
+    if (rd.abs() != cd.abs() || rd == 0) return null;
+    final rs = rd.sign;
+    final cs = cd.sign;
+    var r = piece.row + rs;
+    var c = piece.col + cs;
+    Piece? captured;
+    while (r != dr || c != dc) {
+      final cur = _mmPieceAt(board, r, c);
+      if (cur != null) {
+        if (cur.isPlayer == piece.isPlayer || captured != null) return null;
+        captured = cur;
+      }
+      r += rs;
+      c += cs;
+    }
+    return captured;
+  }
+
+  bool _mmIsCapture(List<Piece> board, Piece piece, int dr, int dc) {
+    if (!piece.isKing) return (dr - piece.row).abs() == 2 && (dc - piece.col).abs() == 2;
+    return _mmKingCapturePiece(board, piece, dr, dc) != null;
+  }
+
+  bool _mmIsValid(List<Piece> board, Piece piece, int dr, int dc) {
+    if (dr < 0 || dr >= boardSize || dc < 0 || dc >= boardSize) return false;
+    if (_mmPieceAt(board, dr, dc) != null) return false;
+    final rd = dr - piece.row;
+    final cd = dc - piece.col;
+    final dir = piece.isPlayer ? -1 : 1;
+    if (piece.isKing) {
+      if (rd.abs() != cd.abs() || rd == 0) return false;
+      if (_mmKingCapturePiece(board, piece, dr, dc) != null) return true;
+      return _mmPathClear(board, piece.row, piece.col, dr, dc);
+    }
+    if (rd == dir && cd.abs() == 1) return true;
+    if (rd.abs() == 2 && cd.abs() == 2) {
+      final mid = _mmPieceAt(board, piece.row + rd ~/ 2, piece.col + cd ~/ 2);
+      return mid != null && mid.isPlayer != piece.isPlayer;
+    }
+    return false;
+  }
+
+  List<Piece> _mmApply(List<Piece> board, Piece piece, int dr, int dc) {
+    final next = board.where((p) => p != piece).toList();
+    if (piece.isKing) {
+      final cap = _mmKingCapturePiece(board, piece, dr, dc);
+      if (cap != null) next.removeWhere((p) => p.row == cap.row && p.col == cap.col);
+    } else if ((dr - piece.row).abs() == 2) {
+      final mr = piece.row + (dr - piece.row) ~/ 2;
+      final mc = piece.col + (dc - piece.col) ~/ 2;
+      next.removeWhere((p) => p.row == mr && p.col == mc);
+    }
+    final king = piece.isKing ||
+        (!piece.isPlayer && dr == boardSize - 1) ||
+        (piece.isPlayer && dr == 0);
+    next.add(Piece(row: dr, col: dc, isPlayer: piece.isPlayer, isKing: king));
+    return next;
+  }
+
+  List<Map<String, dynamic>> _mmMoves(List<Piece> board, bool forAi) {
+    final all = <Map<String, dynamic>>[];
+    final caps = <Map<String, dynamic>>[];
+    for (final piece in board.where((p) => !p.isPlayer == forAi)) {
+      for (var r = 0; r < boardSize; r++) {
+        for (var c = 0; c < boardSize; c++) {
+          if (_mmIsValid(board, piece, r, c)) {
+            final m = {'piece': piece, 'row': r, 'col': c};
+            all.add(m);
+            if (_mmIsCapture(board, piece, r, c)) caps.add(m);
+          }
+        }
+      }
+    }
+    return caps.isNotEmpty ? caps : all;
+  }
+
+  double _mmEvaluate(List<Piece> board) {
+    double score = 0;
+    for (final p in board) {
+      double v = p.isKing ? 5.0 : 3.0;
+      if (!p.isPlayer) {
+        v += p.row * 0.1;
+        if (p.col >= 2 && p.col <= 5) v += 0.3;
+        score += v;
+      } else {
+        v += (boardSize - 1 - p.row) * 0.1;
+        if (p.col >= 2 && p.col <= 5) v += 0.3;
+        score -= v;
+      }
+    }
+    return score;
+  }
+
+  double _minimax(List<Piece> board, int depth, bool maximizing, double alpha, double beta) {
+    final aiMoves = _mmMoves(board, true);
+    final playerMoves = _mmMoves(board, false);
+    if (aiMoves.isEmpty) return -1000.0;
+    if (playerMoves.isEmpty) return 1000.0;
+    if (depth == 0) return _mmEvaluate(board);
+
+    if (maximizing) {
+      double best = double.negativeInfinity;
+      for (final m in aiMoves) {
+        final v = _minimax(
+            _mmApply(board, m['piece'] as Piece, m['row'] as int, m['col'] as int),
+            depth - 1, false, alpha, beta);
+        if (v > best) best = v;
+        if (v > alpha) alpha = v;
+        if (beta <= alpha) break;
+      }
+      return best;
+    } else {
+      double best = double.infinity;
+      for (final m in playerMoves) {
+        final v = _minimax(
+            _mmApply(board, m['piece'] as Piece, m['row'] as int, m['col'] as int),
+            depth - 1, true, alpha, beta);
+        if (v < best) best = v;
+        if (v < beta) beta = v;
+        if (beta <= alpha) break;
+      }
+      return best;
+    }
+  }
+
+  Map<String, dynamic> _bestAiMove(List<Map<String, dynamic>> validMoves, int depth) {
+    Map<String, dynamic>? best;
+    double bestScore = double.negativeInfinity;
+    final snapshot = List<Piece>.from(pieces);
+    for (final m in validMoves) {
+      final next = _mmApply(snapshot, m['piece'] as Piece, m['row'] as int, m['col'] as int);
+      final score = _minimax(next, depth - 1, false, double.negativeInfinity, double.infinity);
+      if (score > bestScore) {
+        bestScore = score;
+        best = m;
+      }
+    }
+    return best ?? validMoves[_random.nextInt(validMoves.length)];
+  }
+
   void _promptForPlayerName() {
     final controller = TextEditingController(text: playerName);
     showDialog(
@@ -891,7 +1056,10 @@ class _HomeScreenState extends State<HomeScreen>
       }
     }
 
-    final move = validMoves[_random.nextInt(validMoves.length)];
+    final int mmDepth = currentLevel == 2 ? 3 : currentLevel >= 3 ? 5 : 0;
+    final move = (mmDepth > 0 && chainPiece == null)
+        ? _bestAiMove(validMoves, mmDepth)
+        : validMoves[_random.nextInt(validMoves.length)];
     final piece = move['piece'] as Piece;
     final row = move['row'] as int;
     final col = move['col'] as int;
